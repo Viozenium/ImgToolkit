@@ -34,11 +34,11 @@ TOOLS = [
         "file": "converter.py",
     },
     {
-        "key": "unzipper",
-        "title": "Unzipper",
-        "desc": "Decomprimi tutti i file .zip presenti\nin una cartella selezionata.",
+        "key": "manual",
+        "title": "Manuale",
+        "desc": "Guida d'uso di ImgToolkit, ogni strumento,\nle opzioni e le scorciatoie da tastiera.",
         "icon": "◑",
-        "file": "unzipper.py",
+        "file": "manual.py",
     },
 ]
 

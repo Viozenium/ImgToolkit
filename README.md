@@ -3,15 +3,15 @@
 ## Italiano
 
 Suite desktop in Python con interfaccia grafica per gestire librerie di immagini su Windows, Linux e macOS.
-Trova duplicati/simili tramite embedding CLIP, converte formati, estrae ZIP in blocco e permette la revisione manuale dei doppioni trovati.
+Trova duplicati/simili tramite embedding CLIP, converte formati e permette la revisione manuale dei doppioni trovati, con manuale d'uso integrato.
 
 ### Descrizione
 
-L'applicazione è composta da un launcher e quattro strumenti indipendenti, tutti realizzati con Tkinter, che permettono di:
+L'applicazione è composta da un launcher, tre strumenti indipendenti e un manuale d'uso integrato, tutti realizzati con Tkinter, che permettono di:
 - Analizzare una cartella di immagini e trovare coppie simili/duplicate tramite embedding CLIP (`open_clip`) e ricerca per similarità con FAISS.
 - Rivedere le coppie trovate una per una, con anteprima affiancata, e spostare l'immagine A, la B o entrambe in una cartella dedicata.
 - Convertire in blocco immagini PNG, JPEG, BMP, TIFF e WEBP nel formato JPG a qualità massima.
-- Decomprimere in blocco tutti i file `.zip` presenti in una cartella, ciascuno nella propria sottocartella.
+- Consultare il manuale d'uso dell'applicazione, con indice navigabile, direttamente dal launcher.
 
 Il modulo `finder.py` gestisce il caricamento del modello CLIP (locale se già presente, altrimenti scaricato automaticamente al primo avvio) e tutta la pipeline di calcolo degli embedding, in modo separato dagli altri strumenti.
 
@@ -21,7 +21,7 @@ Il modulo `finder.py` gestisce il caricamento del modello CLIP (locale se già p
 - Soglia di similarità, batch size e numero di worker regolabili dalla UI
 - Revisione manuale a coppie con scorciatoie da tastiera (A / B / S per spostare, N per saltare, frecce per navigare)
 - Conversione batch in JPG con selezione dei formati sorgente
-- Estrazione batch di archivi ZIP con rilevamento di archivi protetti da password
+- Manuale d'uso integrato con indice per sezioni, flusso di lavoro consigliato e risoluzione dei problemi frequenti
 - Rilevamento automatico GPU (CUDA) con fallback su CPU
 - Download automatico del modello CLIP al primo avvio, se non già presente in locale
 
@@ -33,7 +33,7 @@ ImgToolkit/
 ├── finder.py       # ricerca immagini simili/duplicate (CLIP + FAISS)
 ├── reviewer.py     # revisione manuale delle coppie trovate e spostamento duplicati
 ├── converter.py    # conversione batch immagini → JPG
-├── unzipper.py     # estrazione batch di file .zip
+├── manual.py       # manuale d'uso integrato
 └── info.py         # finestra informazioni / about
 ```
 
@@ -68,7 +68,7 @@ Oppure avviare direttamente il singolo strumento:
 python finder.py
 python reviewer.py
 python converter.py
-python unzipper.py
+python manual.py
 ```
 
 ### Note
@@ -82,15 +82,15 @@ python unzipper.py
 ## English
 
 A Python desktop GUI suite for managing image libraries on Windows, Linux and macOS.
-Find duplicate/similar images via CLIP embeddings, convert formats, batch-extract ZIP files, and manually review the matches found.
+Find duplicate/similar images via CLIP embeddings, convert formats and manually review the matches found, with a built-in user manual.
 
 ### Description
 
-The application consists of a launcher and four independent tools, all built with Tkinter, letting the user:
+The application consists of a launcher, three independent tools and a built-in user manual, all built with Tkinter, letting the user:
 - Scan a folder of images and find similar/duplicate pairs using CLIP embeddings (`open_clip`) and FAISS similarity search.
 - Review the found pairs one by one, with a side-by-side preview, and move image A, B, or both to a dedicated folder.
 - Batch convert PNG, JPEG, BMP, TIFF and WEBP images to full-quality JPG.
-- Batch extract all `.zip` files in a folder, each into its own subfolder.
+- Read the application's user manual, with a navigable index, straight from the launcher.
 
 The `finder.py` module handles loading the CLIP model (from local cache if present, otherwise downloaded automatically on first run) and the whole embedding pipeline, kept separate from the other tools.
 
@@ -100,7 +100,7 @@ The `finder.py` module handles loading the CLIP model (from local cache if prese
 - Adjustable similarity threshold, batch size and worker count from the UI
 - Manual pair-by-pair review with keyboard shortcuts (A / B / S to move, N to skip, arrow keys to navigate)
 - Batch conversion to JPG with source format selection
-- Batch ZIP extraction with password-protected archive detection
+- Built-in user manual with per-section index, recommended workflow and troubleshooting
 - Automatic GPU (CUDA) detection with CPU fallback
 - Automatic CLIP model download on first run, if not already available locally
 
@@ -135,18 +135,24 @@ Or launch a single tool directly:
 python finder.py
 python reviewer.py
 python converter.py
-python unzipper.py
+python manual.py
 ```
 
 ---
 
 ## Changelog
 
+### v1.1.0
+- `unzipper.py` sostituito da `manual.py`, l'estrazione batch degli archivi ZIP è stata rimossa dalla suite
+- `manual.py` - manuale d'uso integrato, indice navigabile per sezioni
+- `launcher.py` - la quarta scheda apre il Manuale al posto dell'Unzipper
+- README aggiornato, descrizione, funzionalità, struttura del progetto e comandi d'uso
+
 ### v1.0.0
 - Prima release pubblica
-- `launcher.py` — hub di avvio con card per ciascuno strumento
-- `finder.py` — ricerca di immagini duplicate/simili con CLIP ViT-B-32 (open_clip) + indice FAISS, soglia di similarità, batch size e numero di worker regolabili, esportazione risultati su file
-- `reviewer.py` — revisione a coppie dei risultati di Finder, spostamento di A, B o entrambe in una cartella dedicata, scorciatoie da tastiera
-- `converter.py` — conversione batch di immagini (PNG, JPEG, BMP, TIFF, WEBP) in JPG a qualità massima
-- `unzipper.py` — estrazione batch di tutti i file .zip di una cartella, con rilevamento archivi protetti da password
-- `info.py` — finestra informazioni/about con link GitHub
+- `launcher.py` - hub di avvio con card per ciascuno strumento
+- `finder.py` - ricerca di immagini duplicate/simili con CLIP ViT-B-32 (open_clip) + indice FAISS, soglia di similarità, batch size e numero di worker regolabili, esportazione risultati su file
+- `reviewer.py` - revisione a coppie dei risultati di Finder, spostamento di A, B o entrambe in una cartella dedicata, scorciatoie da tastiera
+- `converter.py` - conversione batch di immagini (PNG, JPEG, BMP, TIFF, WEBP) in JPG a qualità massima
+- `unzipper.py` - estrazione batch di tutti i file .zip di una cartella, con rilevamento archivi protetti da password
+- `info.py` - finestra informazioni/about con link GitHub

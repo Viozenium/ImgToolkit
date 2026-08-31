@@ -1,6 +1,6 @@
 [project]
 name = "imgtoolkit"
-version = "1.0.0"
+version = "1.1.0"
 description = "Suite desktop per gestire librerie di immagini: duplicati via CLIP+FAISS, conversione formati, estrazione ZIP"
 readme = "README.md"
 requires-python = ">=3.10"
