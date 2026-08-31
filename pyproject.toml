@@ -1,7 +1,7 @@
 [project]
 name = "imgtoolkit"
-version = "1.1.0"
-description = "Suite desktop per gestire librerie di immagini: duplicati via CLIP+FAISS, conversione formati, estrazione ZIP"
+version = "1.1.1"
+description = "Suite desktop per gestire librerie di immagini: duplicati via CLIP+FAISS, revisione delle coppie, conversione in JPG"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }

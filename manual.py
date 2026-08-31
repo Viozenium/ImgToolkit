@@ -1,4 +1,5 @@
 import tkinter as tk
+from tkinter import font as tkfont
 
 try:
     from info import VERSION
@@ -127,9 +128,15 @@ SECTIONS = [
             ),
             (
                 "li",
-                "Num workers (0-32, predefinito 6) - processi paralleli che "
-                "caricano le immagini da disco. Su Windows, in caso di "
-                "problemi, il valore 0 è sempre sicuro.",
+                "Limite thread CPU (1-32) - quanti core può usare il calcolo. "
+                "Il default si adatta all'hardware: 1 con la GPU, 4 senza.",
+            ),
+            (
+                "note",
+                "Con la GPU il valore 1 è anche il più veloce: la parte a "
+                "carico del processore è la decodifica delle immagini, che "
+                "dentro torch non si parallelizza. Senza GPU, alzarlo accorcia "
+                "i tempi ma fa lavorare più core, quindi consumare di più.",
             ),
             (
                 "li",
@@ -408,11 +415,11 @@ SECTIONS = [
                 "Abbassa il Batch size (per esempio a 32 o 16). Senza GPU il "
                 "programma funziona comunque, solo più lentamente.",
             ),
-            ("h2", "L'analisi si blocca o è lentissima su Windows"),
+            ("h2", "Il processore lavora troppo durante l'analisi"),
             (
                 "p",
-                "Prova Num workers a 0: il caricamento delle immagini avviene "
-                "nel processo principale, senza sottoprocessi.",
+                "Abbassa il Limite thread CPU: è il freno pensato apposta. "
+                "Con la GPU puoi tenerlo a 1 senza perdere nulla in velocità.",
             ),
             ("h2", "Reviewer dice che il file non esiste"),
             (
@@ -515,7 +522,7 @@ def _configure_tags(txt):
         rmargin=14,
     )
     txt.tag_configure(
-        "kv", font=FONT, foreground=FG, spacing3=4, lmargin1=14, lmargin2=42
+        "kv", font=FONT, foreground=FG, spacing3=4, lmargin1=14
     )
     txt.tag_configure("key", font=FONT_BOLD, foreground=HIGHLIGHT)
     txt.tag_configure("rule", font=FONT_MONO, foreground=ACCENT, spacing3=6)
@@ -524,6 +531,7 @@ def _configure_tags(txt):
 def _render(txt, sections):
     """Scrive tutte le sezioni e ritorna {key: nome del mark} per l'indice."""
     marks = {}
+    misura = tkfont.Font(root=txt, font=FONT)
     txt.config(state="normal")
     txt.delete("1.0", "end")
     for i, section in enumerate(sections, start=1):
@@ -533,13 +541,26 @@ def _render(txt, sections):
         marks[section["key"]] = mark
         txt.insert("end", f"{i} · {section['title']}\n", "title")
         txt.insert("end", "─" * 56 + "\n", "rule")
+        chiavi = [t.partition("|")[0] for k, t in section["blocks"] if k == "kv"]
+        colonna = max((len(k) for k in chiavi), default=0) + 2
+        tag_kv = f"kv_{section['key']}"
+        if chiavi:
+            txt.tag_configure(
+                tag_kv,
+                font=FONT,
+                foreground=FG,
+                spacing3=4,
+                lmargin1=14,
+                lmargin2=14 + misura.measure(" " * colonna),
+            )
+
         for tag, text in section["blocks"]:
             if tag == "li":
                 txt.insert("end", "• " + text + "\n", "li")
             elif tag == "kv":
                 key, _, desc = text.partition("|")
-                txt.insert("end", f"{key:<12}", ("kv", "key"))
-                txt.insert("end", f"  {desc}\n", "kv")
+                txt.insert("end", f"{key:<{colonna}}", (tag_kv, "key"))
+                txt.insert("end", desc + "\n", tag_kv)
             elif tag == "note":
                 txt.insert("end", "↳ " + text + "\n", "note")
             else:
@@ -547,6 +568,10 @@ def _render(txt, sections):
 
     # Coda vuota: permette di portare in cima anche l'ultima sezione.
     txt.insert("end", "\n" * 24, "p")
+
+    # Dopo le insert il cursore resta in fondo al documento.
+    # Riportarlo all'inizio evita che un "see insert" faccia saltare la vista.
+    txt.mark_set("insert", "1.0")
     txt.config(state="disabled")
     return marks
 
@@ -738,12 +763,20 @@ def manual_main(parent, standalone=False):
     # Scorrimento con rotella e tastiera
 
     def on_wheel(event):
+        """Righe da scorrere per una tacca di rotella, su ogni piattaforma.
+
+        Linux manda Button-4/5, Windows delta multipli di 120, macOS delta
+        piccoli (spesso ±1): dividerli per una costante li azzererebbe.
+        """
         if event.num == 4:
-            txt.yview_scroll(-3, "units")
+            lines = 3
         elif event.num == 5:
-            txt.yview_scroll(3, "units")
+            lines = -3
+        elif abs(event.delta) >= 120:
+            lines = int(event.delta / 120) * 3
         else:
-            txt.yview_scroll(int(-1 * (event.delta / 40)), "units")
+            lines = event.delta
+        txt.yview_scroll(-lines, "units")
         return "break"
 
     for widget in (txt, nav, body):
@@ -751,12 +784,28 @@ def manual_main(parent, standalone=False):
         widget.bind("<Button-4>", on_wheel)
         widget.bind("<Button-5>", on_wheel)
 
-    root.bind("<Up>", lambda e: txt.yview_scroll(-2, "units"))
-    root.bind("<Down>", lambda e: txt.yview_scroll(2, "units"))
-    root.bind("<Prior>", lambda e: txt.yview_scroll(-1, "pages"))
-    root.bind("<Next>", lambda e: txt.yview_scroll(1, "pages"))
-    root.bind("<Home>", lambda e: txt.yview_moveto(0))
-    root.bind("<End>", lambda e: txt.yview_moveto(1))
+    def scroll_key(amount, what):
+        def handler(_event):
+            if what == "moveto":
+                txt.yview_moveto(amount)
+            else:
+                txt.yview_scroll(amount, what)
+            return "break"
+
+        return handler
+
+    for sequence, amount, what in [
+        ("<Up>", -2, "units"),
+        ("<Down>", 2, "units"),
+        ("<Prior>", -1, "pages"),
+        ("<Next>", 1, "pages"),
+        ("<Home>", 0, "moveto"),
+        ("<End>", 1, "moveto"),
+    ]:
+        handler = scroll_key(amount, what)
+        txt.bind(sequence, handler)
+        root.bind(sequence, handler)
+
     txt.focus_set()
 
     return root

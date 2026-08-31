@@ -18,7 +18,7 @@ Il modulo `finder.py` gestisce il caricamento del modello CLIP (locale se già p
 ### Funzionalità principali
 
 - Ricerca di immagini simili/duplicate con CLIP ViT-B-32 (`laion2b_s34b_b79k`) + indice FAISS
-- Soglia di similarità, batch size e numero di worker regolabili dalla UI
+- Soglia di similarità, batch size e limite di thread CPU regolabili dalla UI
 - Revisione manuale a coppie con scorciatoie da tastiera (A / B / S per spostare, N per saltare, frecce per navigare)
 - Conversione batch in JPG con selezione dei formati sorgente
 - Manuale d'uso integrato con indice per sezioni, flusso di lavoro consigliato e risoluzione dei problemi frequenti
@@ -97,7 +97,7 @@ The `finder.py` module handles loading the CLIP model (from local cache if prese
 ### Main features
 
 - Similar/duplicate image search with CLIP ViT-B-32 (`laion2b_s34b_b79k`) + FAISS index
-- Adjustable similarity threshold, batch size and worker count from the UI
+- Adjustable similarity threshold, batch size and CPU thread limit from the UI
 - Manual pair-by-pair review with keyboard shortcuts (A / B / S to move, N to skip, arrow keys to navigate)
 - Batch conversion to JPG with source format selection
 - Built-in user manual with per-section index, recommended workflow and troubleshooting
@@ -141,6 +141,14 @@ python manual.py
 ---
 
 ## Changelog
+
+### v1.1.1
+- `finder.py` - "Num workers", che su Windows veniva ignorato, sostituito da "Limite thread CPU", imposta `torch.set_num_threads`, default 1 con GPU e 4 senza.
+    Su 1200 immagini con GPU, da 299 a 19 secondi-CPU, da 13,4 a 1 core occupato in media, analisi anche leggermente più rapida
+- `converter.py` - il tag EXIF Orientation non viene più ricopiato dopo aver raddrizzato i pixel, niente più foto ruotate due volte
+- `manual.py` - frecce e PagSu/PagGiù non saltano più a fine pagina, colonne chiave/valore allineate anche con chiavi lunghe
+- `reviewer.py` - la cartella "Immagini Duplicate" viene creata al primo spostamento e non più al solo import del modulo
+- `pyproject.toml` - descrizione allineata alla suite attuale
 
 ### v1.1.0
 - `unzipper.py` sostituito da `manual.py`, l'estrazione batch degli archivi ZIP è stata rimossa dalla suite

@@ -8,7 +8,7 @@ HIGHLIGHT = "#e94560"
 FG = "#eaeaea"
 MUTED = "#7a7f9a"
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 AUTHOR = "Mizu"
 GITHUB_USER = "Viozenium"
 GITHUB_URL = f"https://github.com/{GITHUB_USER}"

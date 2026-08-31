@@ -73,7 +73,6 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 # VALORI PREDEFINITI
 
 DEFAULT_BATCH_SIZE = 128
-DEFAULT_NUM_WORKERS = 6
 DEFAULT_SIM_THRESHOLD = 0.95
 DEFAULT_OUTPUT_FILE = "Risultati_somiglianza.txt"
 CACHE_FILENAME = "embeddings_cache.npz"
@@ -90,6 +89,36 @@ SEARCH_CHUNK = 128
 MAX_PAIRS = 2_000_000
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
+
+# --------------------------------------------------------------------
+# LIMITE DI THREAD CPU
+#
+# Senza un tetto torch usa metà dei core logici anche quando non serve, e fra un'operazione e l'altra OpenMP resta in attesa attiva.
+# Misurato su 1200imagini con GPU, il default (16 thread) costa 299 secondi-CPU contro i 19 di un solo thread, ed è pure più lento (22,3s contro 19,2s),
+# perché con la GPU la parte CPU è preprocessing di un'immagine per volta, che dentro torch non si parallelizza.
+#
+# Senza GPU il discorso cambia, lì la forward pass gira sui core e il tetto si paga in tempo.
+# Su 300 immagini: 11,8s con 16 thread, 18,8s con 4, 27,7s con 1.
+# Pur consumando comunque meno energia in totale, da qui i due default.
+
+MAX_CPU_THREADS = 32
+DEFAULT_CPU_THREADS_GPU = 1
+DEFAULT_CPU_THREADS_CPU = 4
+
+
+def default_cpu_threads():
+    if device == "cuda":
+        return DEFAULT_CPU_THREADS_GPU
+    return min(DEFAULT_CPU_THREADS_CPU, os.cpu_count() or DEFAULT_CPU_THREADS_CPU)
+
+
+def set_cpu_threads(n, log=None):
+    """Applica il tetto ai thread interni di torch. Ritorna il valore usato."""
+    n = max(1, min(MAX_CPU_THREADS, int(n)))
+    torch.set_num_threads(n)
+    if log:
+        log(f"Limite thread CPU: {n} (device: {device})")
+    return n
 
 # --------------------------------------------------------------------
 # MODELLO (caricato alla prima analisi)
@@ -260,7 +289,7 @@ def _fmt_eta(seconds):
 
 @torch.inference_mode()
 def compute_embeddings(
-    paths, folder, batch_size, num_workers, use_cache, stop_event, log, progress_cb
+    paths, folder, batch_size, use_cache, stop_event, log, progress_cb
 ):
     """Ritorna (embeddings, paths) oppure (None, []) se interrotto/vuoto.
     Con use_cache, riusa gli embeddings di immagini invariate e salva
@@ -296,17 +325,10 @@ def compute_embeddings(
     if to_compute:
         dataset = ImageDataset([p for p, _ in to_compute], preprocess)
         mtime_by_path = {p: mt for p, mt in to_compute}
-        
-        # --------------------------------------------------------------------
-        # Su Windows i worker multiprocessing non condividono in modo
-        # affidabile CUDA e le variabili globali: forzati a 0.
-
-        safe_workers = 0 if os.name == "nt" else num_workers
         loader = DataLoader(
             dataset,
             batch_size=batch_size,
-            num_workers=safe_workers,
-            pin_memory=(safe_workers > 0),
+            num_workers=0,
             shuffle=False,
             collate_fn=collate_skip_broken,
         )
@@ -609,7 +631,7 @@ class App(tk.Tk):
 
         for col_label, col_key, col_default, col_from, col_to in [
             ("Batch size", "batch", DEFAULT_BATCH_SIZE, 1, 512),
-            ("Num workers", "workers", DEFAULT_NUM_WORKERS, 0, 32),
+            ("Limite thread CPU", "threads", default_cpu_threads(), 1, MAX_CPU_THREADS),
         ]:
             cf = tk.Frame(params_frame, bg=CARD)
             cf.pack(side="left", padx=(0, 20))
@@ -903,7 +925,7 @@ class App(tk.Tk):
 
         output_file = self.output_var.get().strip() or DEFAULT_OUTPUT_FILE
         batch_size = self._batch_var.get()
-        num_workers = self._workers_var.get()
+        cpu_threads = self._threads_var.get()
         threshold = self._thresh_var.get()
         use_cache = self._cache_var.get()
         recursive = self._recursive_var.get()
@@ -932,6 +954,7 @@ class App(tk.Tk):
 
         def task():
             try:
+                set_cpu_threads(cpu_threads, self._log)
                 load_model(self._log)
                 if self._stop_event.is_set():
                     self._log("⏹️    Interrotto dall'utente.")
@@ -954,7 +977,6 @@ class App(tk.Tk):
                     paths,
                     folder,
                     batch_size,
-                    num_workers,
                     use_cache,
                     self._stop_event,
                     self._log,

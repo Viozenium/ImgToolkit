@@ -10,8 +10,6 @@ from PIL import Image, ImageTk
 INPUT_FILE = "Risultati_somiglianza.txt"
 CHECK_FOLDER = os.path.join(os.path.expanduser("~"), "Desktop", "Immagini Duplicate")
 
-os.makedirs(CHECK_FOLDER, exist_ok=True)
-
 # --------------------------------------------------------------------
 # PALETTE COLORI
 
@@ -418,6 +416,7 @@ class Reviewer:
         """Sposta in CHECK_FOLDER evitando di sovrascrivere file omonimi."""
         if not os.path.exists(path):
             return
+        os.makedirs(CHECK_FOLDER, exist_ok=True)
         base = os.path.basename(path)
         dest = os.path.join(CHECK_FOLDER, base)
         if os.path.exists(dest):

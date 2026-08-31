@@ -57,7 +57,7 @@ def _convert_to_jpg(destinazione, paths, quality, log=None, progress=None, fine=
         try:
             with Image.open(file_path) as src:
                 image = ImageOps.exif_transpose(src)
-                exif = src.info.get("exif")
+                exif = image.info.get("exif")
                 icc = src.info.get("icc_profile")
 
             image = _flatten_transparency(image)
