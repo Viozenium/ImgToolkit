@@ -1,51 +1,41 @@
 import os
-import sys
-import shutil
 import threading
-import subprocess
 import tkinter as tk
 from tkinter import messagebox
-from PIL import Image, ImageTk
+from PIL import ImageTk
 
-INPUT_FILE = "Risultati_somiglianza.txt"
-CHECK_FOLDER = os.path.join(os.path.expanduser("~"), "Desktop", "Immagini Duplicate")
-
-# --------------------------------------------------------------------
-# PALETTE COLORI
-
-BG = "#1a1a2e"
-TABBAR = "#12122a"
-TAB_ACT = "#1a1a2e"
-TAB_IDLE = "#0d0d1f"
-TAB_HOVER = "#14142a"
-CARD = "#16213e"
-ACCENT = "#0f3460"
-HIGHLIGHT = "#e94560"
-FG = "#eaeaea"
-MUTED = "#7a7f9a"
-DONE_CLR = "#2a4a2a"
-SKIP_CLR = "#2a2a1a"
-FONT = ("Courier New", 10)
-FONT_SM = ("Courier New", 9)
-FONT_LG = ("Courier New", 13, "bold")
-
-# --------------------------------------------------------------------
-# CARICAMENTO
-
-
-def load_results():
-    results = []
-    if not os.path.exists(INPUT_FILE):
-        return results
-    with open(INPUT_FILE, "r", encoding="utf-8") as f:
-        for line in f:
-            parts = line.strip().split(" | ")
-            if len(parts) != 3:
-                continue
-            a, b, score = parts
-            results.append({"a": a, "b": b, "score": float(score), "state": "pending"})
-    return results
-
+from reviewer_core import (
+    INPUT_FILE,
+    CHECK_FOLDER,
+    load_results,
+    load_image_fast,
+    move_to_check_folder,
+    open_in_system_viewer,
+)
+from theme import (
+    BG,
+    TABBAR,
+    TAB_ACT,
+    TAB_IDLE,
+    TAB_HOVER,
+    CARD,
+    ACCENT,
+    HIGHLIGHT,
+    HIGHLIGHT_ACT,
+    DANGER,
+    NEUTRAL,
+    FG,
+    MUTED,
+    DONE_CLR,
+    DONE_TAB,
+    SKIP_CLR,
+    SKIP_TAB,
+    FONT,
+    FONT_BOLD,
+    FONT_XS,
+    FONT_SM,
+    FONT_LG,
+)
 
 # --------------------------------------------------------------------
 # REVIEWER
@@ -119,7 +109,7 @@ class Reviewer:
             b = tk.Button(
                 f,
                 text=text,
-                font=("Courier New", 10, "bold"),
+                font=FONT_BOLD,
                 bg=color,
                 fg=FG,
                 activebackground=HIGHLIGHT,
@@ -132,22 +122,20 @@ class Reviewer:
             )
             b.pack(pady=(8, 2))
             if key_hint:
-                tk.Label(
-                    f, text=key_hint, font=("Courier New", 8), bg=BG, fg=MUTED
-                ).pack()
+                tk.Label(f, text=key_hint, font=FONT_XS, bg=BG, fg=MUTED).pack()
             return b
 
         lgroup = tk.Frame(action_bar, bg=BG)
         lgroup.pack(side="left", padx=(24, 0))
-        btn(lgroup, "↑ MOVE A", "#7b2d42", self._move_a, "tasto A")
-        btn(lgroup, "↑ MOVE B", "#7b2d42", self._move_b, "tasto B")
-        btn(lgroup, "↑ MOVE BOTH", HIGHLIGHT, self._move_both, "tasto S")
+        btn(lgroup, "MOVE A", DANGER, self._move_a, "tasto A")
+        btn(lgroup, "MOVE B", DANGER, self._move_b, "tasto B")
+        btn(lgroup, "MOVE BOTH", HIGHLIGHT, self._move_both, "tasto S")
 
         rgroup = tk.Frame(action_bar, bg=BG)
         rgroup.pack(side="right", padx=(0, 24))
-        btn(rgroup, "✕ CHIUDI", "#333355", self.root.destroy, "tasto Q")
+        btn(rgroup, "✕ CHIUDI", NEUTRAL, self.root.destroy, "tasto Q")
         btn(rgroup, "◀ PREV", ACCENT, lambda: self._go(self.current - 1), "← freccia")
-        btn(rgroup, "SKIP ▶", ACCENT, self._skip, "tasto N")
+        btn(rgroup, "SKIP", ACCENT, self._skip, "tasto N")
         btn(rgroup, "NEXT ▶", ACCENT, lambda: self._go(self.current + 1), "→ freccia")
         content = tk.Frame(self.root, bg=BG)
         content.pack(fill="both", expand=True)
@@ -242,7 +230,7 @@ class Reviewer:
                 w.destroy()
             self._tab_buttons = []
 
-        color_map_state = {"done": "#3a5a3a", "skipped": "#3a3a1a"}
+        color_map_state = {"done": DONE_TAB, "skipped": SKIP_TAB}
 
         for rel_i, pair in enumerate(visible):
             abs_i = start + rel_i
@@ -366,7 +354,7 @@ class Reviewer:
                 self._pil_cache[path] = self._pil_cache.pop(path)
                 results[key] = self._pil_cache[path]
             else:
-                img = self._load_image_fast(path, target)
+                img = load_image_fast(path, target)
                 results[key] = img
                 if img is not None:
                     self._pil_cache[path] = img
@@ -390,43 +378,13 @@ class Reviewer:
                 )
                 lbl.image = None
 
-    def _load_image_fast(self, path, target):
-        """Ritorna un'immagine PIL ridimensionata (NON un PhotoImage)."""
-        try:
-            tw, th = target
-            with Image.open(path) as src:
-                ow, oh = src.size
-                scale = max(ow / tw, oh / th)
-                if scale >= 8:
-                    src.draft("RGB", (ow // 8, oh // 8))
-                elif scale >= 4:
-                    src.draft("RGB", (ow // 4, oh // 4))
-                elif scale >= 2:
-                    src.draft("RGB", (ow // 2, oh // 2))
-                img = src.convert("RGB")
-            img.thumbnail(target, Image.BILINEAR)
-            return img
-        except Exception:
-            return None
-
     # --------------------------------------------------------------------
     # AZIONI
 
     def _move(self, path):
-        """Sposta in CHECK_FOLDER evitando di sovrascrivere file omonimi."""
-        if not os.path.exists(path):
-            return
-        os.makedirs(CHECK_FOLDER, exist_ok=True)
-        base = os.path.basename(path)
-        dest = os.path.join(CHECK_FOLDER, base)
-        if os.path.exists(dest):
-            name, ext = os.path.splitext(base)
-            n = 1
-            while os.path.exists(os.path.join(CHECK_FOLDER, f"{name}_{n}{ext}")):
-                n += 1
-            dest = os.path.join(CHECK_FOLDER, f"{name}_{n}{ext}")
-        shutil.move(path, dest)
-        self._pil_cache.pop(path, None)
+        """Sposta il file e toglie l'anteprima dalla cache."""
+        if move_to_check_folder(path):
+            self._pil_cache.pop(path, None)
 
     def _move_a(self):
         self._move(self.pairs[self.current]["a"])
@@ -476,15 +434,7 @@ class Reviewer:
             self._show(index)
 
     def _open_file(self, path):
-        try:
-            if sys.platform == "win32":
-                os.startfile(path)
-            elif sys.platform == "darwin":
-                subprocess.call(["open", path])
-            else:
-                subprocess.call(["xdg-open", path])
-        except Exception:
-            pass
+        open_in_system_viewer(path)
 
 
 # --------------------------------------------------------------------

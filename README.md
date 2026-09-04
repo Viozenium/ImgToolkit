@@ -13,7 +13,7 @@ L'applicazione è composta da un launcher, tre strumenti indipendenti e un manua
 - Convertire in blocco immagini PNG, JPEG, BMP, TIFF e WEBP nel formato JPG a qualità massima.
 - Consultare il manuale d'uso dell'applicazione, con indice navigabile, direttamente dal launcher.
 
-Il modulo `finder.py` gestisce il caricamento del modello CLIP (locale se già presente, altrimenti scaricato automaticamente al primo avvio) e tutta la pipeline di calcolo degli embedding, in modo separato dagli altri strumenti.
+Il modulo `finder_core.py` gestisce il caricamento del modello CLIP (locale se già presente, altrimenti scaricato automaticamente al primo avvio) e tutta la pipeline di calcolo degli embedding, separatamente dall'interfaccia in `finder.py`.
 
 ### Funzionalità principali
 
@@ -29,12 +29,16 @@ Il modulo `finder.py` gestisce il caricamento del modello CLIP (locale se già p
 
 ```
 ImgToolkit/
-├── launcher.py     # punto di ingresso, hub per avviare gli altri strumenti
-├── finder.py       # ricerca immagini simili/duplicate (CLIP + FAISS)
-├── reviewer.py     # revisione manuale delle coppie trovate e spostamento duplicati
-├── converter.py    # conversione batch immagini → JPG
-├── manual.py       # manuale d'uso integrato
-└── info.py         # finestra informazioni / about
+├── launcher.py         # punto di ingresso, hub per avviare gli altri strumenti
+├── theme.py            # palette e font condivisi da tutte le finestre
+├── finder.py           # interfaccia della ricerca duplicati
+├── finder_core.py      # motore, modello CLIP, embeddings, indice FAISS, ricerca
+├── reviewer.py         # interfaccia della revisione a coppie
+├── reviewer_core.py    # lettura risultati, spostamento file, caricamento immagini
+├── converter.py        # interfaccia della conversione in JPG
+├── converter_core.py   # conversione vera e propria
+├── manual.py           # manuale d'uso integrato
+└── info.py             # finestra informazioni / about
 ```
 
 ### Requisiti
@@ -92,7 +96,7 @@ The application consists of a launcher, three independent tools and a built-in u
 - Batch convert PNG, JPEG, BMP, TIFF and WEBP images to full-quality JPG.
 - Read the application's user manual, with a navigable index, straight from the launcher.
 
-The `finder.py` module handles loading the CLIP model (from local cache if present, otherwise downloaded automatically on first run) and the whole embedding pipeline, kept separate from the other tools.
+The `finder_core.py` module handles loading the CLIP model (from local cache if present, otherwise downloaded automatically on first run) and the whole embedding pipeline, kept separate from the GUI in `finder.py`.
 
 ### Main features
 
@@ -141,6 +145,11 @@ python manual.py
 ---
 
 ## Changelog
+
+### v1.1.2
+- Separazione fra interfaccia e logica, `finder.py`, `reviewer.py` e `converter.py` restano la sola interfaccia, mentre `finder_core.py`, `reviewer_core.py` e `converter_core.py` contengono la logica e non dipendono da tkinter
+- `theme.py` - palette e font condivisi, prima ripetuti in cinque file
+- Nessun cambiamento di comportamento o di aspetto, stessa resa a schermo e stessi tempi di analisi
 
 ### v1.1.1
 - `finder.py` - "Num workers", che su Windows veniva ignorato, sostituito da "Limite thread CPU", imposta `torch.set_num_threads`, default 1 con GPU e 4 senza.

@@ -6,24 +6,27 @@ try:
 except Exception:
     VERSION = "?"
 
-BG = "#1a1a2e"
-CARD = "#16213e"
-ACCENT = "#0f3460"
-HIGHLIGHT = "#e94560"
-ENTRY_BG = "#0d1b2a"
-FG = "#eaeaea"
-MUTED = "#7a7f9a"
-NAV_IDLE = "#12122a"
-NAV_HOVER = "#1e2a50"
-FONT = ("Courier New", 10)
-FONT_BOLD = ("Courier New", 10, "bold")
-FONT_MONO = ("Courier New", 9)
+from theme import (
+    BG,
+    CARD,
+    ACCENT,
+    HIGHLIGHT,
+    HIGHLIGHT_ACT,
+    ENTRY_BG,
+    FG,
+    MUTED,
+    NAV_IDLE,
+    NAV_HOVER,
+    CODE_FG,
+    FONT,
+    FONT_BOLD,
+    FONT_MONO,
+    FONT_HEADER,
+    FONT_SECTION,
+)
 
 # --------------------------------------------------------------------
 # CONTENUTO DEL MANUALE
-#
-# Ogni sezione è una lista di blocchi (tag, testo); i tag corrispondono
-# agli stili definiti in _configure_tags().
 
 SECTIONS = [
     {
@@ -491,7 +494,7 @@ SECTIONS = [
 def _configure_tags(txt):
     txt.tag_configure(
         "title",
-        font=("Courier New", 13, "bold"),
+        font=FONT_SECTION,
         foreground=HIGHLIGHT,
         spacing1=18,
         spacing3=8,
@@ -513,7 +516,7 @@ def _configure_tags(txt):
     txt.tag_configure(
         "code",
         font=FONT_MONO,
-        foreground="#9ad1ff",
+        foreground=CODE_FG,
         background=ENTRY_BG,
         spacing1=6,
         spacing3=8,
@@ -521,9 +524,7 @@ def _configure_tags(txt):
         lmargin2=14,
         rmargin=14,
     )
-    txt.tag_configure(
-        "kv", font=FONT, foreground=FG, spacing3=4, lmargin1=14
-    )
+    txt.tag_configure("kv", font=FONT, foreground=FG, spacing3=4, lmargin1=14)
     txt.tag_configure("key", font=FONT_BOLD, foreground=HIGHLIGHT)
     txt.tag_configure("rule", font=FONT_MONO, foreground=ACCENT, spacing3=6)
 
@@ -565,8 +566,6 @@ def _render(txt, sections):
                 txt.insert("end", "↳ " + text + "\n", "note")
             else:
                 txt.insert("end", text + "\n", tag)
-
-    # Coda vuota: permette di portare in cima anche l'ultima sezione.
     txt.insert("end", "\n" * 24, "p")
 
     # Dopo le insert il cursore resta in fondo al documento.
@@ -610,7 +609,7 @@ def manual_main(parent, standalone=False):
     tk.Label(
         hdr,
         text="◈  MANUALE D'USO",
-        font=("Courier New", 16, "bold"),
+        font=FONT_HEADER,
         bg=BG,
         fg=HIGHLIGHT,
     ).pack(anchor="w")
@@ -641,7 +640,7 @@ def manual_main(parent, standalone=False):
         font=FONT_BOLD,
         bg=HIGHLIGHT,
         fg=FG,
-        activebackground="#c73652",
+        activebackground=HIGHLIGHT_ACT,
         activeforeground=FG,
         relief="flat",
         bd=0,

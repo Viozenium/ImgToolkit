@@ -1,14 +1,19 @@
 import tkinter as tk
 import webbrowser
 
-BG = "#1a1a2e"
-CARD = "#16213e"
-ACCENT = "#0f3460"
-HIGHLIGHT = "#e94560"
-FG = "#eaeaea"
-MUTED = "#7a7f9a"
+from theme import (
+    BG,
+    ACCENT,
+    HIGHLIGHT,
+    HIGHLIGHT_ACT,
+    FG,
+    MUTED,
+    FONT,
+    FONT_BOLD,
+    FONT_HEADER,
+)
 
-VERSION = "1.1.1"
+VERSION = "1.1.2"
 AUTHOR = "Mizu"
 GITHUB_USER = "Viozenium"
 GITHUB_URL = f"https://github.com/{GITHUB_USER}"
@@ -50,9 +55,9 @@ def main(parent=None):
     tk.Frame(info_win, bg=HIGHLIGHT, height=3).pack(fill="x")
     hdr = tk.Frame(info_win, bg=BG, padx=28, pady=18)
     hdr.pack(fill="x")
-    tk.Label(
-        hdr, text="◈  ABOUT", font=("Courier New", 16, "bold"), bg=BG, fg=HIGHLIGHT
-    ).pack(anchor="w")
+    tk.Label(hdr, text="◈  ABOUT", font=FONT_HEADER, bg=BG, fg=HIGHLIGHT).pack(
+        anchor="w"
+    )
     tk.Frame(info_win, bg=ACCENT, height=1).pack(fill="x", padx=28)
     body = tk.Frame(info_win, bg=BG, padx=28, pady=20)
     body.pack(fill="both", expand=True)
@@ -63,15 +68,15 @@ def main(parent=None):
         tk.Label(
             f,
             text=label,
-            font=("Courier New", 10),
+            font=FONT,
             bg=BG,
             fg=MUTED,
             width=10,
             anchor="w",
         ).pack(side="left")
-        tk.Label(
-            f, text=value, font=("Courier New", 10, "bold"), bg=BG, fg=FG, anchor="w"
-        ).pack(side="left")
+        tk.Label(f, text=value, font=FONT_BOLD, bg=BG, fg=FG, anchor="w").pack(
+            side="left"
+        )
 
     row("Author", AUTHOR)
     row("Version", VERSION)
@@ -80,7 +85,7 @@ def main(parent=None):
     tk.Label(
         f,
         text="GitHub",
-        font=("Courier New", 10),
+        font=FONT,
         bg=BG,
         fg=MUTED,
         width=10,
@@ -89,7 +94,7 @@ def main(parent=None):
     link = tk.Label(
         f,
         text=GITHUB_USER,
-        font=("Courier New", 10, "bold"),
+        font=FONT_BOLD,
         bg=BG,
         fg=HIGHLIGHT,
         cursor="hand2",
@@ -103,10 +108,10 @@ def main(parent=None):
     tk.Button(
         info_win,
         text="Chiudi",
-        font=("Courier New", 10, "bold"),
+        font=FONT_BOLD,
         bg=HIGHLIGHT,
         fg=FG,
-        activebackground="#c73652",
+        activebackground=HIGHLIGHT_ACT,
         activeforeground=FG,
         relief="flat",
         bd=0,

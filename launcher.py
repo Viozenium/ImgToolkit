@@ -4,6 +4,22 @@ import subprocess
 import tkinter as tk
 from tkinter import messagebox
 
+from theme import (
+    BG,
+    CARD,
+    CARD_HOV,
+    ACCENT,
+    HIGHLIGHT,
+    HIGHLIGHT_ACT,
+    BUSY,
+    FG,
+    MUTED,
+    FONT,
+    FONT_MONO,
+    FONT_CARD,
+    FONT_TITLE,
+)
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 try:
@@ -42,15 +58,6 @@ TOOLS = [
     },
 ]
 
-BG = "#1a1a2e"
-CARD = "#16213e"
-CARD_HOV = "#1e2a50"
-ACCENT = "#0f3460"
-HIGHLIGHT = "#e94560"
-FG = "#eaeaea"
-MUTED = "#7a7f9a"
-
-
 class Launcher(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -71,14 +78,14 @@ class Launcher(tk.Tk):
         tk.Label(
             hdr,
             text="IMGTOOLKIT",
-            font=("Courier New", 18, "bold"),
+            font=FONT_TITLE,
             bg=BG,
             fg=HIGHLIGHT,
         ).pack(anchor="w")
         tk.Label(
             hdr,
             text=f"Seleziona uno strumento da avviare  ·  v{VERSION}",
-            font=("Courier New", 10),
+            font=FONT,
             bg=BG,
             fg=MUTED,
         ).pack(anchor="w")
@@ -93,13 +100,13 @@ class Launcher(tk.Tk):
 
         self._status = tk.StringVar(value="Nessuno strumento in esecuzione.")
         tk.Label(
-            footer, textvariable=self._status, font=("Courier New", 9), bg=BG, fg=MUTED
+            footer, textvariable=self._status, font=FONT_MONO, bg=BG, fg=MUTED
         ).pack(side="left")
 
         tk.Button(
             footer,
             text="✕ Esci",
-            font=("Courier New", 9),
+            font=FONT_MONO,
             bg=BG,
             fg=MUTED,
             relief="flat",
@@ -112,7 +119,7 @@ class Launcher(tk.Tk):
         tk.Button(
             footer,
             text="ℹ Info",
-            font=("Courier New", 9),
+            font=FONT_MONO,
             bg=BG,
             fg=MUTED,
             relief="flat",
@@ -132,7 +139,7 @@ class Launcher(tk.Tk):
         tk.Label(
             left,
             text=f"{tool['icon']}  {tool['title']}",
-            font=("Courier New", 11, "bold"),
+            font=FONT_CARD,
             bg=CARD,
             fg=FG,
             anchor="w",
@@ -140,7 +147,7 @@ class Launcher(tk.Tk):
         tk.Label(
             left,
             text=tool["desc"],
-            font=("Courier New", 9),
+            font=FONT_MONO,
             bg=CARD,
             fg=MUTED,
             justify="left",
@@ -150,10 +157,10 @@ class Launcher(tk.Tk):
         btn = tk.Button(
             card,
             text="▶ Avvia",
-            font=("Courier New", 10, "bold"),
+            font=FONT_CARD,
             bg=HIGHLIGHT,
             fg=FG,
-            activebackground="#c73652",
+            activebackground=HIGHLIGHT_ACT,
             activeforeground=FG,
             relief="flat",
             bd=0,
@@ -250,7 +257,7 @@ class Launcher(tk.Tk):
                 data["btn"].configure(state="disabled", bg=ACCENT)
             else:
                 data["btn"].configure(
-                    text="⏳ In esecuzione", state="disabled", bg="#555"
+                    text="⏳ In esecuzione", state="disabled", bg=BUSY
                 )
 
     def _unlock_ui(self):
