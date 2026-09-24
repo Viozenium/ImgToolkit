@@ -1,23 +1,23 @@
 import os
-import sys
 import subprocess
+import sys
 import tkinter as tk
 from tkinter import messagebox
 
 from theme import (
+    ACCENT,
     BG,
+    BUSY,
     CARD,
     CARD_HOV,
-    ACCENT,
+    FG,
+    FONT,
+    FONT_CARD,
+    FONT_MONO,
+    FONT_TITLE,
     HIGHLIGHT,
     HIGHLIGHT_ACT,
-    BUSY,
-    FG,
     MUTED,
-    FONT,
-    FONT_MONO,
-    FONT_CARD,
-    FONT_TITLE,
 )
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -31,7 +31,8 @@ TOOLS = [
     {
         "key": "finder",
         "title": "Finder",
-        "desc": "Analizza una cartella, calcola gli embedding CLIP\ne trova le immagini simili tramite FAISS.",
+        "desc": "Analizza una cartella, calcola gli embedding CLIP\n"
+        "e trova le immagini simili tramite FAISS.",
         "icon": "◈",
         "file": "finder.py",
     },
@@ -52,7 +53,9 @@ TOOLS = [
     {
         "key": "manual",
         "title": "Manuale",
-        "desc": "Guida d'uso di ImgToolkit, ogni strumento,\nle opzioni e le scorciatoie da tastiera.",
+        "single": True,
+        "desc": "Guida d'uso di ImgToolkit, ogni strumento,\n"
+        "le opzioni e le scorciatoie da tastiera.",
         "icon": "◑",
         "file": "manual.py",
     },
@@ -66,6 +69,7 @@ class Launcher(tk.Tk):
         self.resizable(False, False)
         self._proc = None
         self._locked_key = None
+        self._single_procs = {}
         self._cards = {}
         self.protocol("WM_DELETE_WINDOW", self._on_close)
         self._build()
@@ -222,6 +226,10 @@ class Launcher(tk.Tk):
             messagebox.showerror("Errore", f"File non trovato:\n{script}")
             return
 
+        if tool.get("single"):
+            self._launch_single(tool, script)
+            return
+
         try:
             self._proc = subprocess.Popen([sys.executable, script], cwd=HERE)
         except Exception as e:
@@ -232,6 +240,41 @@ class Launcher(tk.Tk):
         self._lock_ui()
         self._status.set(f"▶ {tool['title']} in esecuzione…")
         self._poll()
+
+    # --------------------------------------------------------------------
+    # STRUMENTI A ISTANZA SINGOLA
+    # Non bloccano le altre schede, ma di ciascuno resta aperta una copiasola, premere di nuovo «Avvia» non moltiplica le finestre.
+
+    def _launch_single(self, tool, script):
+        proc = self._single_procs.get(tool["key"])
+        if proc and proc.poll() is None:
+            self._status.set(f"{tool['title']}: già aperto.")
+            return
+
+        try:
+            self._single_procs[tool["key"]] = subprocess.Popen(
+                [sys.executable, script], cwd=HERE
+            )
+        except Exception as e:
+            messagebox.showerror("Errore", f"Impossibile avviare {tool['title']}:\n{e}")
+            return
+
+        self._status.set(f"{tool['title']}: aperto.")
+        self._cards[tool["key"]]["btn"].configure(text="Aperto", bg=BUSY)
+        self._poll_single(tool["key"])
+
+    def _poll_single(self, key):
+        proc = self._single_procs.get(key)
+        if proc and proc.poll() is None:
+            self.after(300, lambda: self._poll_single(key))
+            return
+
+        self._single_procs.pop(key, None)
+        data = self._cards.get(key)
+        if data:
+            data["btn"].configure(text="▶ Avvia", bg=HIGHLIGHT, state="normal")
+        if not self._locked_key and not self._single_procs:
+            self._status.set("Nessuno strumento in esecuzione.")
 
     def _poll(self):
         if self._proc and self._proc.poll() is None:
@@ -253,6 +296,8 @@ class Launcher(tk.Tk):
 
     def _lock_ui(self):
         for key, data in self._cards.items():
+            if data["tool"].get("single"):
+                continue
             if key != self._locked_key:
                 data["btn"].configure(state="disabled", bg=ACCENT)
             else:
@@ -262,21 +307,33 @@ class Launcher(tk.Tk):
 
     def _unlock_ui(self):
         for key, data in self._cards.items():
-            data["btn"].configure(state="normal", bg=HIGHLIGHT, text="▶ Avvia")
+            if key in self._single_procs:
+                data["btn"].configure(state="normal", text="Aperto", bg=BUSY)
+            else:
+                data["btn"].configure(state="normal", bg=HIGHLIGHT, text="▶ Avvia")
             self._set_card_bg(data["card"], CARD)
 
     # --------------------------------------------------------------------
     # CHIUSURA
 
     def _on_close(self):
-        if self._proc and self._proc.poll() is None:
-            tool_title = ""
-            if self._locked_key and self._locked_key in self._cards:
-                tool_title = self._cards[self._locked_key]["tool"]["title"]
+        aperti = []
+        if self._proc and self._proc.poll() is None and self._locked_key in self._cards:
+            aperti.append(self._cards[self._locked_key]["tool"]["title"])
+        for key, proc in self._single_procs.items():
+            if proc.poll() is None and key in self._cards:
+                aperti.append(self._cards[key]["tool"]["title"])
+
+        if aperti:
+            elenco = " e ".join(aperti) if len(aperti) < 3 else ", ".join(aperti)
+            solo = len(aperti) == 1
+            verbo = "è ancora aperto" if solo else "sono ancora aperti"
+            continuano = "continuerà" if solo else "continueranno"
+            da_solo = "da solo" if solo else "da soli"
             if not messagebox.askyesno(
-                "Strumento in esecuzione",
-                f"{tool_title} è ancora aperto e continuerà a funzionare "
-                "da solo.\nChiudere comunque il launcher?",
+                "Strumenti in esecuzione",
+                f"{elenco} {verbo} e {continuano} a funzionare {da_solo}.\n"
+                "Chiudere comunque il launcher?",
             ):
                 return
         self.destroy()

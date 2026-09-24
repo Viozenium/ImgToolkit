@@ -1,22 +1,24 @@
-import sys, threading, datetime
+import datetime
 import os
+import sys
+import threading
 import tkinter as tk
-from tkinter import filedialog
+from tkinter import filedialog, messagebox
 
 from converter_core import FORMATS, _convert_to_jpg
 from theme import (
+    ACCENT,
     BG,
     CARD,
-    ACCENT,
-    HIGHLIGHT,
-    HIGHLIGHT_ACT,
     ENTRY_BG,
     FG,
-    MUTED,
     FONT,
     FONT_BOLD,
-    FONT_MONO,
     FONT_HEADER,
+    FONT_MONO,
+    HIGHLIGHT,
+    HIGHLIGHT_ACT,
+    MUTED,
 )
 
 # --------------------------------------------------------------------
@@ -32,7 +34,30 @@ def converter_main(parent, standalone=False):
 
     selected_paths = []
 
+    # --------------------------------------------------------------------
+    # Stato della conversione
+    # serve sia per chiedere conferma alla chiusura sia per non far parlare il thread con una finestra ormai distrutta.
+
+    stato = {"in_corso": False, "chiusa": False}
+
+    def safe_after(fn, *args):
+        """after() dal worker: no-op se la finestra è già stata chiusa."""
+        if stato["chiusa"]:
+            return
+        try:
+            root.after(0, fn, *args)
+        except (tk.TclError, RuntimeError):
+            pass
+
     def safe_exit():
+        if stato["in_corso"] and not messagebox.askyesno(
+            "Conversione in corso",
+            "La conversione non è ancora finita: chiudendo si interrompe.\n"
+            "I file già convertiti restano al loro posto.\n\nChiudere comunque?",
+            parent=root,
+        ):
+            return
+        stato["chiusa"] = True
         try:
             root.destroy()
         except Exception:
@@ -291,6 +316,7 @@ def converter_main(parent, standalone=False):
         status_var.set(f"Conversione… {done}/{total}")
 
     def on_done():
+        stato["in_corso"] = False
         convert_btn.config(state="normal", bg=HIGHLIGHT, text="▶  Converti")
         status_var.set("Pronto.")
 
@@ -320,6 +346,7 @@ def converter_main(parent, standalone=False):
         if skipped:
             log_message(f"ℹ️  {skipped} file ignorati (formato non selezionato)")
 
+        stato["in_corso"] = True
         convert_btn.config(state="disabled", bg=ACCENT, text="⏳ In corso…")
         status_var.set(f"Conversione di {len(to_convert)} file…")
         log_message(
@@ -331,9 +358,9 @@ def converter_main(parent, standalone=False):
                 dest,
                 to_convert,
                 quality,
-                lambda m: root.after(0, log_message, m),
-                lambda d, t: root.after(0, on_progress, d, t),
-                lambda: root.after(0, on_done),
+                lambda m: safe_after(log_message, m),
+                lambda d, t: safe_after(on_progress, d, t),
+                lambda: safe_after(on_done),
             ),
             daemon=True,
         ).start()

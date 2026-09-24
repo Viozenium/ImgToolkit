@@ -6,8 +6,17 @@ aprire una finestra. L'interfaccia sta in finder.py.
 
 import os
 import sys
+import threading
 
-_script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+# --------------------------------------------------------------------
+# CONSOLE ASSENTE
+
+if sys.stdout is None:
+    sys.stdout = open(os.devnull, "w")
+if sys.stderr is None:
+    sys.stderr = open(os.devnull, "w")
+
+_script_dir = os.path.dirname(os.path.abspath(__file__))
 _local_models = os.path.join(_script_dir, "models")
 if os.path.isdir(_local_models) and "HF_HOME" not in os.environ:
     os.environ["HF_HOME"] = _local_models
@@ -55,21 +64,75 @@ def _find_model_path():
 # Offline solo se il checkpoint è già presente in locale, altrimenti la rete resta abilitata, così open_clip può scaricarlo al primo avvio.
 
 _LOCAL_MODEL_PATH = _find_model_path()
+
+os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
+
 if _LOCAL_MODEL_PATH:
     os.environ["HF_HUB_OFFLINE"] = "1"
     os.environ["TRANSFORMERS_OFFLINE"] = "1"
-    os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
-os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
 
-import time
-import numpy as np
-import torch
-from PIL import Image, ImageFile
-import faiss
-import open_clip
-from torch.utils.data import Dataset, DataLoader
+import time  # noqa: E402
+
+from PIL import Image, ImageFile  # noqa: E402
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
+
+# --------------------------------------------------------------------
+# LIBRERIE PESANTI, CARICATE SU RICHIESTA
+
+faiss = None
+np = None
+open_clip = None
+torch = None
+DataLoader = None
+device = None
+
+
+_init_lock = threading.Lock()
+
+
+def init_backend(log=None):
+    """Importa le librerie pesanti e sceglie il device. Chiamabile più volte.
+
+    Il lock serve a chi dovesse chiamarla da più thread insieme: senza, due
+    chiamate simultanee vedrebbero entrambe device a None e farebbero il
+    lavoro due volte.
+    """
+    global faiss, np, open_clip, torch, DataLoader, device
+    if device is not None:
+        return device
+
+    with _init_lock:
+        if device is not None:
+            return device
+
+        if log:
+            log("Inizializzazione librerie...")
+        t0 = time.time()
+
+        import faiss as _faiss
+        import numpy as _np
+        import open_clip as _open_clip
+        import torch as _torch
+        from torch.utils.data import DataLoader as _DataLoader
+
+        faiss, np, open_clip, torch, DataLoader = (
+            _faiss,
+            _np,
+            _open_clip,
+            _torch,
+            _DataLoader,
+        )
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        if log:
+            log(f"Librerie pronte in {time.time() - t0:.1f}s (device: {device.upper()})")
+        return device
+
+
+def get_device():
+    """Device scelto, oppure None se le librerie non sono ancora caricate."""
+    return device
 
 # --------------------------------------------------------------------
 # VALORI PREDEFINITI
@@ -89,7 +152,6 @@ VALID_EXT = (".jpg", ".jpeg", ".png", ".webp", ".bmp")
 SEARCH_CHUNK = 128
 MAX_PAIRS = 2_000_000
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
 
 # --------------------------------------------------------------------
 # LIMITE DI THREAD CPU
@@ -108,6 +170,7 @@ DEFAULT_CPU_THREADS_CPU = 4
 
 
 def default_cpu_threads():
+    init_backend()
     if device == "cuda":
         return DEFAULT_CPU_THREADS_GPU
     return min(DEFAULT_CPU_THREADS_CPU, os.cpu_count() or DEFAULT_CPU_THREADS_CPU)
@@ -115,6 +178,7 @@ def default_cpu_threads():
 
 def set_cpu_threads(n, log=None):
     """Applica il tetto ai thread interni di torch. Ritorna il valore usato."""
+    init_backend(log)
     n = max(1, min(MAX_CPU_THREADS, int(n)))
     torch.set_num_threads(n)
     if log:
@@ -162,6 +226,7 @@ def load_model(log):
     global model, preprocess
     if model is not None:
         return
+    init_backend(log)
     log("Caricamento modello CLIP...")
 
     model_path = _LOCAL_MODEL_PATH
@@ -191,7 +256,7 @@ def load_model(log):
 # DATASET
 
 
-class ImageDataset(Dataset):
+class ImageDataset:
     def __init__(self, paths, transform):
         self.paths = paths
         self.transform = transform
@@ -289,7 +354,6 @@ def _fmt_eta(seconds):
     return f"~{h}h {m:02d}m rimanenti"
 
 
-@torch.inference_mode()
 def compute_embeddings(
     paths, folder, batch_size, use_cache, stop_event, log, progress_cb
 ):
@@ -297,6 +361,15 @@ def compute_embeddings(
     Con use_cache, riusa gli embeddings di immagini invariate e salva
     la cache aggiornata (anche in caso di stop)."""
 
+    init_backend(log)
+    with torch.inference_mode():
+        return _compute_embeddings(
+            paths, folder, batch_size, use_cache, stop_event, log, progress_cb
+        )
+
+def _compute_embeddings(
+    paths, folder, batch_size, use_cache, stop_event, log, progress_cb
+):
     cache = load_embedding_cache(folder, log) if use_cache else {}
 
     def rel(p):
@@ -370,8 +443,15 @@ def compute_embeddings(
     # La cache viene salvata anche se l'utente ha interrotto, il lavoro già fatto non va perso.
 
     if use_cache:
-        merged = {r: (cache[r][0], e) for r, e in reused.items()}
+
+        merged = dict(cache)
+        merged.update({r: (cache[r][0], e) for r, e in reused.items()})
         merged.update(new_embs)
+        merged = {
+            r: v
+            for r, v in merged.items()
+            if os.path.exists(os.path.join(folder, r))
+        }
         save_embedding_cache(folder, merged, log)
 
     if stopped:
@@ -393,6 +473,7 @@ def compute_embeddings(
 
 
 def build_index(embeddings):
+    init_backend()
     dim = embeddings.shape[1]
     index = faiss.IndexFlatIP(dim)
     index.add(embeddings.astype(np.float32))
@@ -419,6 +500,7 @@ def find_and_save(
     volta sola: nessun bisogno di un set di visti, che a milioni di coppie
     costerebbe più dei risultati stessi.
     """
+    init_backend()
     x = embeddings.astype(np.float32)
     n = len(paths)
     results = []

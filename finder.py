@@ -1,7 +1,7 @@
 import os
 import threading
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+from tkinter import filedialog, messagebox, ttk
 
 from finder_core import (
     DEFAULT_BATCH_SIZE,
@@ -11,27 +11,30 @@ from finder_core import (
     build_index,
     compute_embeddings,
     default_cpu_threads,
-    device,
     find_and_save,
+    get_device,
+    init_backend,
     load_images,
     load_model,
     set_cpu_threads,
 )
 from theme import (
+    ACCENT,
     BG,
     CARD,
-    ACCENT,
-    HIGHLIGHT,
-    HIGHLIGHT_ACT,
     DANGER,
-    WHITE,
     ENTRY_BG,
     FG,
-    MUTED_SOFT as MUTED,
+    FONT_CARD,
     FONT_LABEL,
     FONT_MONO,
-    FONT_CARD,
     FONT_TITLE,
+    HIGHLIGHT,
+    HIGHLIGHT_ACT,
+    WHITE,
+)
+from theme import (
+    MUTED_SOFT as MUTED,
 )
 
 # --------------------------------------------------------------------
@@ -47,15 +50,21 @@ class App(tk.Tk):
 
         self._running = False
         self._closing = False
+        self._ready = False
         self._stop_event = threading.Event()
+        self._device_var = tk.StringVar(
+            value="CLIP · ViT-B-32 · FAISS · caricamento librerie..."
+        )
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
         self._build_ui()
+        self.after(50, lambda: threading.Thread(target=self._init_backend, daemon=True).start())
 
     # --------------------------------------------------------------------
     # COSTRUZIONE UI
 
     def _build_ui(self):
+        
         # --------------------------------------------------------------------
         # Titolo
         title_frame = tk.Frame(self, bg=BG, padx=24, pady=16)
@@ -69,7 +78,7 @@ class App(tk.Tk):
         ).pack(anchor="w")
         tk.Label(
             title_frame,
-            text=f"CLIP · ViT-B-32 · FAISS · device: {device.upper()}",
+            textvariable=self._device_var,
             font=FONT_LABEL,
             bg=BG,
             fg=MUTED,
@@ -186,7 +195,7 @@ class App(tk.Tk):
 
         for col_label, col_key, col_default, col_from, col_to in [
             ("Batch size", "batch", DEFAULT_BATCH_SIZE, 1, 512),
-            ("Limite thread CPU", "threads", default_cpu_threads(), 1, MAX_CPU_THREADS),
+            ("Limite thread CPU", "threads", 1, 1, MAX_CPU_THREADS),
         ]:
             cf = tk.Frame(params_frame, bg=CARD)
             cf.pack(side="left", padx=(0, 20))
@@ -357,11 +366,12 @@ class App(tk.Tk):
 
         # --------------------------------------------------------------------
         # Barra inferiore (sempre visibile)
+        
         tk.Frame(self, bg=HIGHLIGHT, height=1).pack(fill="x", padx=24)
         bottom = tk.Frame(self, bg=BG, padx=24, pady=14)
         bottom.pack(fill="x", side="bottom")
 
-        self._status_var = tk.StringVar(value="Pronto.")
+        self._status_var = tk.StringVar(value="Caricamento librerie…")
         tk.Label(
             bottom, textvariable=self._status_var, font=FONT_LABEL, bg=BG, fg=MUTED
         ).pack(side="left")
@@ -378,6 +388,7 @@ class App(tk.Tk):
             bd=0,
             padx=24,
             pady=10,
+            state="disabled",
             command=self._toggle_run,
         )
         self._run_btn.pack(side="right")
@@ -415,11 +426,15 @@ class App(tk.Tk):
         self.destroy()
 
     def _safe_after(self, fn, *args):
-        """after() dal worker: no-op se la finestra è già stata chiusa."""
+        """after() dal worker: no-op se la finestra è chiusa o non ancora in loop.
+
+        RuntimeError arriva quando il thread chiama after() mentre il main
+        thread non è (o non è più) dentro mainloop.
+        """
         if not self._closing:
             try:
                 self.after(0, fn, *args)
-            except tk.TclError:
+            except (tk.TclError, RuntimeError):
                 pass
 
     # --------------------------------------------------------------------
@@ -462,6 +477,33 @@ class App(tk.Tk):
         self._status_var.set(msg)
 
     # --------------------------------------------------------------------
+    # INIZIALIZZAZIONE IN SOTTOFONDO
+
+    def _init_backend(self):
+        """Gira in un thread: importa torch, faiss e open_clip."""
+        try:
+            init_backend(self._log)
+        except Exception as e:
+            self._safe_after(self._backend_failed, str(e))
+            return
+        self._safe_after(self._backend_ready)
+
+    def _backend_ready(self):
+        dispositivo = get_device()
+        self._device_var.set(
+            f"CLIP · ViT-B-32 · FAISS · device: {dispositivo.upper()}"
+        )
+        self._threads_var.set(default_cpu_threads())
+        self._run_btn.configure(state="normal")
+        self._ready = True
+        self._set_status("Pronto.")
+
+    def _backend_failed(self, errore):
+        self._device_var.set("CLIP · ViT-B-32 · FAISS · librerie non disponibili")
+        self._set_status("Librerie non caricate: analisi non disponibile.")
+        self._log(f"Errore nel caricamento delle librerie: {errore}")
+
+    # --------------------------------------------------------------------
     # AVVIO / ARRESTO
 
     def _toggle_run(self):
@@ -473,6 +515,10 @@ class App(tk.Tk):
             self._start()
 
     def _start(self):
+        if not self._ready:
+            self._set_status("Librerie ancora in caricamento...")
+            return
+
         folder = self.folder_var.get().strip()
         if not folder or not os.path.isdir(folder):
             messagebox.showerror("Errore", "Seleziona una cartella valida.")

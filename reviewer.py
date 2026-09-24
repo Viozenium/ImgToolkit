@@ -2,39 +2,43 @@ import os
 import threading
 import tkinter as tk
 from tkinter import messagebox
+
 from PIL import ImageTk
 
 from reviewer_core import (
-    INPUT_FILE,
     CHECK_FOLDER,
-    load_results,
+    INPUT_FILE,
+    apply_state,
+    clear_state,
     load_image_fast,
+    load_results,
+    load_state,
+    load_undo,
     move_to_check_folder,
     open_in_system_viewer,
+    restore_from_check_folder,
+    save_state,
 )
 from theme import (
-    BG,
-    TABBAR,
-    TAB_ACT,
-    TAB_IDLE,
-    TAB_HOVER,
-    CARD,
     ACCENT,
-    HIGHLIGHT,
-    HIGHLIGHT_ACT,
+    BG,
+    CARD,
     DANGER,
-    NEUTRAL,
-    FG,
-    MUTED,
-    DONE_CLR,
     DONE_TAB,
-    SKIP_CLR,
-    SKIP_TAB,
+    FG,
     FONT,
     FONT_BOLD,
-    FONT_XS,
-    FONT_SM,
     FONT_LG,
+    FONT_SM,
+    FONT_XS,
+    HIGHLIGHT,
+    MUTED,
+    NEUTRAL,
+    SKIP_TAB,
+    TAB_ACT,
+    TAB_HOVER,
+    TAB_IDLE,
+    TABBAR,
 )
 
 # --------------------------------------------------------------------
@@ -42,15 +46,18 @@ from theme import (
 
 
 class Reviewer:
-    def __init__(self, root, pairs):
+    def __init__(self, root, pairs, input_file=INPUT_FILE, undo=None):
         self.root = root
         self.pairs = pairs
+        self._input_file = input_file
         self.current = 0
         self._tab_buttons = []
         self._pil_cache = {}
-        self._count_done = 0
-        self._count_skipped = 0
+        self._count_done = sum(1 for p in pairs if p["state"] == "done")
+        self._count_skipped = sum(1 for p in pairs if p["state"] == "skipped")
         self._load_token = 0
+        self._closing = False
+        self._undo_stack = undo or []
 
         self.root.title("Duplicate Image Manager")
         self.root.configure(bg=BG)
@@ -61,7 +68,7 @@ class Reviewer:
 
         self._build_ui()
         self._render_tabs()
-        self._show(0)
+        self._show(next((i for i, p in enumerate(pairs) if p["state"] == "pending"), 0))
 
         # --------------------------------------------------------------------
         # Scorciatoie da tastiera
@@ -72,7 +79,9 @@ class Reviewer:
         self.root.bind("n", lambda e: self._skip())
         self.root.bind("<Left>", lambda e: self._go(self.current - 1))
         self.root.bind("<Right>", lambda e: self._go(self.current + 1))
-        self.root.bind("q", lambda e: self.root.destroy())
+        self.root.bind("z", lambda e: self._undo())
+        self.root.bind("q", lambda e: self._close())
+        self.root.protocol("WM_DELETE_WINDOW", self._close)
         self.root.bind("<Configure>", self._on_resize)
 
     # --------------------------------------------------------------------
@@ -133,7 +142,8 @@ class Reviewer:
 
         rgroup = tk.Frame(action_bar, bg=BG)
         rgroup.pack(side="right", padx=(0, 24))
-        btn(rgroup, "✕ CHIUDI", NEUTRAL, self.root.destroy, "tasto Q")
+        btn(rgroup, "✕ CHIUDI", NEUTRAL, self._close, "tasto Q")
+        self._undo_btn = btn(rgroup, "↩ ANNULLA", NEUTRAL, self._undo, "tasto Z")
         btn(rgroup, "◀ PREV", ACCENT, lambda: self._go(self.current - 1), "← freccia")
         btn(rgroup, "SKIP", ACCENT, self._skip, "tasto N")
         btn(rgroup, "NEXT ▶", ACCENT, lambda: self._go(self.current + 1), "→ freccia")
@@ -274,7 +284,8 @@ class Reviewer:
                 inner._accent.configure(bg=accent_color)
 
         self.counter_lbl.config(
-            text=f"{self.current + 1}/{len(self.pairs)}  ✓{self._count_done}  ↷{self._count_skipped}"
+            text=f"{self.current + 1}/{len(self.pairs)}  "
+            f"✓{self._count_done}  ↷{self._count_skipped}"
         )
 
     # --------------------------------------------------------------------
@@ -360,8 +371,11 @@ class Reviewer:
                     self._pil_cache[path] = img
                     if len(self._pil_cache) > 20:
                         self._pil_cache.pop(next(iter(self._pil_cache)))
-        if token == self._load_token:
-            self.root.after(0, self._apply_images, results["a"], results["b"], token)
+        if token == self._load_token and not self._closing:
+            try:
+                self.root.after(0, self._apply_images, results["a"], results["b"], token)
+            except (RuntimeError, tk.TclError):
+                pass  # finestra chiusa mentre l'anteprima era in preparazione
 
     def _apply_images(self, pil_a, pil_b, token):
         """Gira nel main thread: qui è sicuro creare i PhotoImage."""
@@ -382,29 +396,86 @@ class Reviewer:
     # AZIONI
 
     def _move(self, path):
-        """Sposta il file e toglie l'anteprima dalla cache."""
-        if move_to_check_folder(path):
+        """Sposta il file e toglie l'anteprima dalla cache.
+
+        Ritorna (origine, destinazione) se lo spostamento è avvenuto: serve
+        a _annota() per poterlo annullare.
+        """
+        dest = move_to_check_folder(path)
+        if dest:
             self._pil_cache.pop(path, None)
+            return (path, dest)
+        return None
+
+    def _salva_stato(self):
+        save_state(self.pairs, self._input_file, self._undo_stack)
+
+    def _annota(self, spostamenti):
+        """Registra l'azione appena fatta in cima alla pila degli annullamenti."""
+        self._undo_stack.append(
+            {
+                "index": self.current,
+                "stato_precedente": self.pairs[self.current]["state"],
+                "spostamenti": [s for s in spostamenti if s],
+            }
+        )
 
     def _move_a(self):
-        self._move(self.pairs[self.current]["a"])
+        spostati = [self._move(self.pairs[self.current]["a"])]
+        self._annota(spostati)
         self._set_state(self.current, "done")
+        self._salva_stato()
         self._advance()
 
     def _move_b(self):
-        self._move(self.pairs[self.current]["b"])
+        spostati = [self._move(self.pairs[self.current]["b"])]
+        self._annota(spostati)
         self._set_state(self.current, "done")
+        self._salva_stato()
         self._advance()
 
     def _move_both(self):
-        self._move(self.pairs[self.current]["a"])
-        self._move(self.pairs[self.current]["b"])
+        spostati = [
+            self._move(self.pairs[self.current]["a"]),
+            self._move(self.pairs[self.current]["b"]),
+        ]
+        self._annota(spostati)
         self._set_state(self.current, "done")
+        self._salva_stato()
         self._advance()
 
     def _skip(self):
+        self._annota([])
         self._set_state(self.current, "skipped")
+        self._salva_stato()
         self._advance()
+
+    def _undo(self):
+        """Annulla l'ultima azione: riporta indietro i file e ripristina lo stato."""
+        if not self._undo_stack:
+            return
+        azione = self._undo_stack.pop()
+
+        falliti = []
+        for origine, dest in azione["spostamenti"]:
+            if restore_from_check_folder(dest, origine):
+                self._pil_cache.pop(origine, None)
+            else:
+                falliti.append(os.path.basename(origine))
+
+        self._set_state(azione["index"], azione["stato_precedente"])
+        self._salva_stato()
+        self._show(azione["index"])
+
+        if falliti:
+            messagebox.showwarning(
+                "Annullamento parziale",
+                "Non sono riuscito a riportare indietro:\n"
+                + "\n".join(falliti)
+                + "\n\nIl file non è più nella cartella dei duplicati, "
+                "oppure al posto di partenza ne è comparso un altro con lo "
+                "stesso nome.",
+            )
 
     def _set_state(self, index, new_state):
         old_state = self.pairs[index]["state"]
@@ -427,7 +498,29 @@ class Reviewer:
             self._show(next_i)
         else:
             self._render_tabs()
-            messagebox.showinfo("Completato", "Tutte le coppie sono state processate!")
+            self._fine_revisione()
+
+    def _fine_revisione(self):
+        """Riepilogo finale, con scorciatoia alla cartella dei duplicati."""
+        riepilogo = (
+            "Tutte le coppie sono state processate.\n\n"
+            f"Coppie gestite: {self._count_done}\n"
+            f"Coppie saltate: {self._count_skipped}"
+        )
+        if not os.path.isdir(CHECK_FOLDER):
+            messagebox.showinfo("Completato", riepilogo)
+            return
+        if messagebox.askyesno(
+            "Completato",
+            f"{riepilogo}\n\nLe immagini spostate sono in:\n{CHECK_FOLDER}\n\n"
+            "Aprire la cartella?",
+        ):
+            open_in_system_viewer(CHECK_FOLDER)
+
+    def _close(self):
+        """Chiude segnalando ai thread di caricamento di non toccare più la UI."""
+        self._closing = True
+        self.root.destroy()
 
     def _go(self, index):
         if 0 <= index < len(self.pairs):
@@ -456,7 +549,29 @@ def run():
         return
 
     root = tk.Tk()
-    Reviewer(root, pairs)
+
+    # --------------------------------------------------------------------
+    # Revisione precedente
+    # si riprende solo se l'utente lo conferma, così ricominciare da capo resta sempre possibile.
+
+    stato = load_state()
+    azioni = []
+    if stato:
+        root.withdraw()
+        ritrovate = sum(1 for p in pairs if (p["a"], p["b"]) in stato)
+        if ritrovate and messagebox.askyesno(
+            "Revisione precedente",
+            f"Trovate {ritrovate} coppie già decise in una sessione "
+            "precedente.\n\nRiprendere da dove avevi lasciato?\n"
+            "(No ricomincia da capo e scarta le decisioni salvate)",
+        ):
+            apply_state(pairs, stato)
+            azioni = load_undo()
+        else:
+            clear_state()
+        root.deiconify()
+
+    Reviewer(root, pairs, undo=azioni)
     root.mainloop()
 
 

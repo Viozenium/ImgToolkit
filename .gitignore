@@ -221,3 +221,9 @@ __marimo__/
 Risultati_somiglianza.txt
 icon.ico
 embeddings_cache.npz
+Risultati_somiglianza.stato.json
+*.vbs
+*.iss
+
+# Checkpoint CLIP e cache HuggingFace
+models/

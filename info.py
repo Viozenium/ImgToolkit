@@ -2,18 +2,18 @@ import tkinter as tk
 import webbrowser
 
 from theme import (
-    BG,
     ACCENT,
-    HIGHLIGHT,
-    HIGHLIGHT_ACT,
+    BG,
     FG,
-    MUTED,
     FONT,
     FONT_BOLD,
     FONT_HEADER,
+    HIGHLIGHT,
+    HIGHLIGHT_ACT,
+    MUTED,
 )
 
-VERSION = "1.1.2"
+VERSION = "1.2.0"
 AUTHOR = "Mizu"
 GITHUB_USER = "Viozenium"
 GITHUB_URL = f"https://github.com/{GITHUB_USER}"

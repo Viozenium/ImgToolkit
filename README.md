@@ -146,6 +146,18 @@ python manual.py
 
 ## Changelog
 
+### v1.2.0
+- `reviewer.py` - nuovo comando ANNULLA (tasto Z), riporta indietro i file dell'ultima azione e rimette la coppia in attesa, anche più volte di seguito
+- `reviewer.py` - la revisione si può interrompere e riprendere, le decisioni finiscono in `Risultati_somiglianza.stato.json` accanto ai risultati e alla riapertura viene chiesto se continuare o ricominciare
+- `finder.py` - la finestra si apre in circa 0,2 secondi invece di 4, torch, faiss e open_clip vengono caricati in sottofondo mentre si sceglie la cartella
+- `finder_core.py` - la cache degli embeddings non viene più potata cambiando "Includi sottocartelle", si aggiorna mantenendo quanto già calcolato e scarta solo le voci dei file spariti
+- `launcher.py` - il Manuale non blocca più gli altri strumenti e si consulta mentre l'analisi gira, ma ne resta aperta una copia sola
+- `reviewer.py` - chiudendo la finestra mentre prepara un'anteprima non compare più un errore in console
+- `reviewer.py` - a revisione completata il file di stato viene rimosso, e un riepilogo propone di aprire la cartella dei duplicati
+- `converter.py` - chiudendo durante una conversione viene chiesta conferma e il thread non parla più con una finestra distrutta, prima moriva con un errore
+- `launcher.py` - l'avviso di chiusura elenca anche il Manuale, non solo gli strumenti che bloccano le schede
+- `finder_core.py` - il download del modello non fallisce più quando l'applicazione è avviata senza console (con `pythonw`): le barre di avanzamento di HuggingFace sono sempre disattivate e `sys.stdout`/`sys.stderr` assenti vengono sostituiti
+
 ### v1.1.2
 - Separazione fra interfaccia e logica, `finder.py`, `reviewer.py` e `converter.py` restano la sola interfaccia, mentre `finder_core.py`, `reviewer_core.py` e `converter_core.py` contengono la logica e non dipendono da tkinter
 - `theme.py` - palette e font condivisi, prima ripetuti in cinque file

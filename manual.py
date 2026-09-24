@@ -7,22 +7,22 @@ except Exception:
     VERSION = "?"
 
 from theme import (
+    ACCENT,
     BG,
     CARD,
-    ACCENT,
-    HIGHLIGHT,
-    HIGHLIGHT_ACT,
+    CODE_FG,
     ENTRY_BG,
     FG,
-    MUTED,
-    NAV_IDLE,
-    NAV_HOVER,
-    CODE_FG,
     FONT,
     FONT_BOLD,
-    FONT_MONO,
     FONT_HEADER,
+    FONT_MONO,
     FONT_SECTION,
+    HIGHLIGHT,
+    HIGHLIGHT_ACT,
+    MUTED,
+    NAV_HOVER,
+    NAV_IDLE,
 )
 
 # --------------------------------------------------------------------
@@ -79,7 +79,8 @@ SECTIONS = [
         "blocks": [
             (
                 "p",
-                "Il launcher è la finestra principale, elenca gli strumenti disponibili, ognuno con una scheda e un pulsante «Avvia».",
+                "Il launcher è la finestra principale, elenca gli strumenti "
+                "disponibili, ognuno con una scheda e un pulsante «Avvia».",
             ),
             ("h2", "Cosa aspettarsi:"),
             (
@@ -89,17 +90,26 @@ SECTIONS = [
             ),
             (
                 "li",
+                "Il manuale fa eccezione, si apre anche mentre un altro "
+                "strumento lavora.\n"
+                "Di manuale però ne resta aperto uno solo: premendo di nuovo "
+                "«Avvia» il launcher lo segnala invece di aprirne un altro.",
+            ),
+            (
+                "li",
                 "La barra in basso indica lo strumento in esecuzione e segnala "
                 "se si è chiuso con un errore.",
             ),
             (
                 "li",
                 "Chiudendo il launcher mentre uno strumento è aperto viene "
-                "chiesta conferma, lo strumento continua a funzionare da solo.",
+                "chiesta conferma, lo strumento continua a funzionare da solo.\n"
+                "Vale anche per il manuale."
             ),
             (
                 "li",
-                "Il pulsante «Info» apre la finestra con versione, autore e link al profilo GitHub.",
+                "Il pulsante «Info» apre la finestra con versione, autore e "
+                "link al profilo GitHub.",
             ),
         ],
     },
@@ -194,6 +204,13 @@ SECTIONS = [
             ),
             (
                 "note",
+                "All'apertura la finestra compare subito, ma il pulsante di "
+                "avvio resta spento per qualche secondo: sono le librerie che "
+                "si caricano in sottofondo. L'intestazione lo segnala e mostra "
+                "il device appena pronte.",
+            ),
+            (
+                "note",
                 "Durante l'analisi il pulsante diventa «STOP»: l'interruzione è "
                 "pulita e la cache già calcolata viene comunque salvata.",
             ),
@@ -262,7 +279,34 @@ SECTIONS = [
             ("li", "MOVE B - sposta l'immagine di destra e passa avanti."),
             ("li", "MOVE BOTH - sposta entrambe le immagini."),
             ("li", "SKIP - segna la coppia come saltata senza toccare i file."),
+            (
+                "li",
+                "ANNULLA - disfa l'ultima azione: riporta i file spostati al "
+                "loro posto e rimette la coppia in attesa. Si può premere più "
+                "volte per risalire indietro.",
+            ),
             ("li", "PREV / NEXT - scorre le coppie senza decidere nulla."),
+            ("h2", "Riprendere una revisione"),
+            (
+                "p",
+                "Le decisioni prese vengono salvate in un file affiancato ai "
+                "risultati, con lo stesso nome e suffisso .stato.json. "
+                "Riaprendo Reviewer sullo stesso elenco, la finestra chiede se "
+                "riprendere da dove avevi lasciato o ricominciare da capo.",
+            ),
+            (
+                "note",
+                "Lo stato è legato ai percorsi delle immagini, non alla loro "
+                "posizione nell'elenco: rilanciando il Finder con un'altra "
+                "soglia, le coppie che ricompaiono si riprendono la decisione "
+                "già presa. Riprendendo, ANNULLA può disfare anche quello che "
+                "avevi deciso prima di chiudere.",
+            ),
+            (
+                "note",
+                "A revisione finita il file di stato viene rimosso da solo, e "
+                "un riepilogo propone di aprire la cartella dei duplicati.",
+            ),
             ("h2", "Dove finiscono le immagini"),
             ("code", "~/Desktop/Immagini Duplicate"),
             (
@@ -318,6 +362,11 @@ SECTIONS = [
             ("p", "2. Scegli i file con «Sfoglia…»."),
             ("p", "3. Controlla la cartella di destinazione e la qualità."),
             ("p", "4. Premi «Converti» e segui il log."),
+            (
+                "note",
+                "Chiudendo la finestra a conversione in corso viene chiesta "
+                "conferma: i file già convertiti restano dove sono.",
+            ),
             ("h2", "Dettagli utili"),
             (
                 "li",
@@ -391,6 +440,7 @@ SECTIONS = [
             ("kv", "B|sposta l'immagine B e passa avanti"),
             ("kv", "S|sposta entrambe le immagini"),
             ("kv", "N|salta la coppia"),
+            ("kv", "Z|annulla l'ultima azione"),
             ("kv", "← →|coppia precedente / successiva"),
             ("kv", "Q|chiude la finestra"),
             ("kv", "clic|apre l'immagine nel visualizzatore di sistema"),
@@ -465,6 +515,11 @@ SECTIONS = [
         "blocks": [
             ("h2", "File prodotti dagli strumenti"),
             ("kv", "Risultati_somiglianza.txt|elenco delle coppie trovate da Finder"),
+            (
+                "kv",
+                "Risultati_somiglianza.stato.json|decisioni prese nel Reviewer, "
+                "per riprendere la revisione",
+            ),
             ("kv", "embeddings_cache.npz|cache degli embedding, nella cartella analizzata"),
             ("kv", "Immagini Duplicate|cartella sul Desktop con le immagini spostate"),
             ("h2", "Modello e licenze"),
