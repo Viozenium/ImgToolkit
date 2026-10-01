@@ -185,3 +185,7 @@ python manual.py
 - `converter.py` - conversione batch di immagini (PNG, JPEG, BMP, TIFF, WEBP) in JPG a qualità massima
 - `unzipper.py` - estrazione batch di tutti i file .zip di una cartella, con rilevamento archivi protetti da password
 - `info.py` - finestra informazioni/about con link GitHub
+
+## Schema / Diagram
+
+![Schema del progetto](docs/schema.png)
